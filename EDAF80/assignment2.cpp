@@ -17,6 +17,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "glm/ext.hpp"
+
 #include <cstdlib>
 #include <stdexcept>
 
@@ -57,7 +59,9 @@ void
 edaf80::Assignment2::run()
 {
 	// Load the sphere geometry
-	auto const shape = parametric_shapes::createCircleRing(4u, 60u, 1.0f, 2.0f);
+	// auto const shape = parametric_shapes::createCircleRing(4u, 60u, 1.0f, 2.0f);
+	auto const shape = parametric_shapes::createSphere(60u, 30u, 1.0f);
+	// auto const shape = parametric_shapes::createQuad(10u, 10u);
 	if (shape.vao == 0u)
 		return;
 
@@ -114,6 +118,8 @@ edaf80::Assignment2::run()
 	auto circle_rings = Node();
 	circle_rings.set_geometry(shape);
 	circle_rings.set_program(&fallback_shader, set_uniforms);
+	glm::vec3 circle_ring_pos = glm::vec3(0.0f, 0.0f, 0.0f);
+	circle_rings.set_translation(circle_ring_pos);
 
 
 	//! \todo Create a tesselated sphere and a tesselated torus
@@ -126,7 +132,7 @@ edaf80::Assignment2::run()
 	// Enable face culling to improve performance
 	//glEnable(GL_CULL_FACE);
 	//glCullFace(GL_FRONT);
-	//glCullFace(GL_BACK);
+	glCullFace(GL_BACK);
 
 
 	f64 ddeltatime;
@@ -136,6 +142,8 @@ edaf80::Assignment2::run()
 
 	bool show_logs = true;
 	bool show_gui = true;
+	float xPos = 0.05;
+	bool turn = false;
 
 	while (!glfwWindowShouldClose(window)) {
 		nowTime = GetTimeSeconds();
@@ -176,6 +184,34 @@ edaf80::Assignment2::run()
 		if (inputHandler.GetKeycodeState(GLFW_KEY_Z) & JUST_PRESSED) {
 			polygon_mode = get_next_mode(polygon_mode);
 		}
+		if (inputHandler.GetKeycodeState(GLFW_KEY_I) & JUST_PRESSED) {
+			glm::vec3 newPos; 
+			if (xPos >= 3){
+				turn = true;
+			}
+			if (xPos <= 0){
+				turn = false;
+			}
+
+			if (turn) {
+				xPos = xPos - 0.05;
+			} else {
+				xPos = xPos + 0.05;
+			}
+			if(use_linear){
+				newPos = interpolation::evalLERP(circle_ring_pos, 
+									circle_ring_pos + glm::vec3(5.0f, 5.0f, 1.0f), xPos);
+			} else {
+				newPos = interpolation::evalCatmullRom(circle_ring_pos, circle_ring_pos + glm::vec3(5.0f, 5.0f, 1.0f), 
+									circle_ring_pos + glm::vec3(-4.0f, 2.0f, 8.0f), circle_ring_pos + glm::vec3(1.5f, -3.0f, 1.0f), 
+									catmull_rom_tension, xPos);
+			}
+			circle_rings.set_translation(newPos);
+			// std::cout << xPos << "   " << glm::to_string(interpolation::evalLERP(circle_ring_pos, 
+			// 						circle_ring_pos + glm::vec3(5.0f, 5.0f, 1.0f), xPos)) << std::endl << glm::to_string(interpolation::evalLERP(circle_ring_pos, 
+			// 						circle_ring_pos + glm::vec3(5.0f, 5.0f, 1.0f), xPos)) << std::endl;
+
+		}
 		switch (polygon_mode) {
 			case polygon_mode_t::fill:
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -191,9 +227,6 @@ edaf80::Assignment2::run()
 		circle_rings.rotate_y(0.01f);
 
 
-		//! \todo Interpolate the movement of a shape between various
-		//!        control points
-
 
 		int framebuffer_width, framebuffer_height;
 		glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
@@ -201,7 +234,6 @@ edaf80::Assignment2::run()
 		glClearDepthf(1.0f);
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-
 		circle_rings.render(mCamera.GetWorldToClipMatrix(), circle_rings.get_transform());
 
 		bool const opened = ImGui::Begin("Scene Controls", nullptr, ImVec2(300, 100), -1.0f, 0);
