@@ -236,7 +236,7 @@ int main()
 		std::stack<Node const*> node_stack({ &solar_system_node });
 		std::stack<glm::mat4> matrix_stack({ glm::mat4(1.0f) });
 
-		super_render(glm::mat4x4(1.0f),&solar_system_node, shader, camera);
+		super_render(glm::mat4x4(1.0f), &solar_system_node, shader, camera);
 
 		//
 		// Display Dear ImGui windows

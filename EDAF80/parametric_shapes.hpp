@@ -44,4 +44,5 @@ namespace parametric_shapes
 	//! @return wrapper around OpenGL objects' name containing the geometry
 	//!         data
 	bonobo::mesh_data createCircleRing(unsigned int const radius_res, unsigned int const theta_res, float const inner_radius, float const outer_radius);
+	bonobo::mesh_data createManyQuads(unsigned int width, unsigned int height);
 }

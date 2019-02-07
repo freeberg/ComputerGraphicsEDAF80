@@ -9,6 +9,7 @@
 #include "core/LogView.h"
 #include "core/Misc.h"
 #include "core/node.hpp"
+#include "core/helpers.hpp"
 #include "core/ShaderProgramManager.hpp"
 
 #include <imgui.h>
@@ -58,11 +59,17 @@ void
 edaf80::Assignment3::run()
 {
 	// Load the sphere geometry
-	auto circle_ring_shape = parametric_shapes::createCircleRing(4u, 60u, 1.0f, 2.0f);
+	//auto circle_ring_shape = parametric_shapes::createCircleRing(4u, 60u, 1.0f, 2.0f);
+	auto const circle_ring_shape = parametric_shapes::createSphere(60u, 30u, 1.5f);
 	if (circle_ring_shape.vao == 0u) {
 		LogError("Failed to retrieve the circle ring mesh");
 		return;
 	}
+
+	auto my_cube_map_id = bonobo::loadTextureCubeMap("sunset_sky/posx.png","sunset_sky/negx.png","sunset_sky/posy.png","sunset_sky/negy.png", "sunset_sky/posz.png","sunset_sky/negz.png", true);
+	GLuint const bump_texture = bonobo::loadTexture2D("fieldstone_bump.png");
+	GLuint const diffuse_texture = bonobo::loadTexture2D("fieldstone_diffuse.png");
+
 
 	// Set up the camera
 	mCamera.mWorld.SetTranslate(glm::vec3(0.0f, 0.0f, 6.0f));
@@ -101,14 +108,35 @@ edaf80::Assignment3::run()
 	if (texcoord_shader == 0u)
 		LogError("Failed to load texcoord shader");
 
+	GLuint phong_shader = 0u;
+	program_manager.CreateAndRegisterProgram({ { ShaderType::vertex, "EDAF80/phong.vert" },
+	                                           { ShaderType::fragment, "EDAF80/phong.frag" } },
+	                                         phong_shader);
+	if (phong_shader == 0u)
+		LogError("Failed to load phong shader");
+
+	GLuint cube_shader = 0u;
+	program_manager.CreateAndRegisterProgram({ { ShaderType::vertex, "EDAF80/cubemapping.vert" },
+	                                           { ShaderType::fragment, "EDAF80/cubemapping.frag" } },
+	                                         cube_shader);
+	if (cube_shader == 0u)
+		LogError("Failed to load cube shader");
+
+	GLuint bump_shader = 0u;
+	program_manager.CreateAndRegisterProgram({ { ShaderType::vertex, "EDAF80/bump.vert" },
+	                                           { ShaderType::fragment, "EDAF80/bump.frag" } },
+	                                         bump_shader);
+	if (bump_shader == 0u)
+		LogError("Failed to load cube shader");
+
 	auto light_position = glm::vec3(-2.0f, 4.0f, 2.0f);
 	auto const set_uniforms = [&light_position](GLuint program){
 		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
 	};
 
 	auto camera_position = mCamera.mWorld.GetTranslation();
-	auto ambient = glm::vec3(0.2f, 0.2f, 0.2f);
-	auto diffuse = glm::vec3(0.7f, 0.2f, 0.4f);
+	auto ambient = glm::vec3(0.8f, 0.8f, 0.8f);
+	auto diffuse = glm::vec3(1.2f, 0.7f, 0.9f);
 	auto specular = glm::vec3(1.0f, 1.0f, 1.0f);
 	auto shininess = 1.0f;
 	auto const phong_set_uniforms = [&light_position,&camera_position,&ambient,&diffuse,&specular,&shininess](GLuint program){
@@ -120,17 +148,21 @@ edaf80::Assignment3::run()
 		glUniform1f(glGetUniformLocation(program, "shininess"), shininess);
 	};
 
-	auto polygon_mode = polygon_mode_t::fill;
+	auto polygon_mode = polygon_mode_t::point;
 
 	auto circle_ring = Node();
 	circle_ring.set_geometry(circle_ring_shape);
 	circle_ring.set_program(&fallback_shader, set_uniforms);
+	circle_ring.add_texture("my_cube_map", my_cube_map_id, GL_TEXTURE_CUBE_MAP);
+	circle_ring.add_texture("my_bump_map", bump_texture, GL_TEXTURE_2D);
+	circle_ring.add_texture("my_diffuse_map", diffuse_texture, GL_TEXTURE_2D);
+
 
 	glEnable(GL_DEPTH_TEST);
 
 	// Enable face culling to improve performance:
-	//glEnable(GL_CULL_FACE);
-	//glCullFace(GL_FRONT);
+	// glEnable(GL_CULL_FACE);
+	// glCullFace(GL_FRONT);
 	//glCullFace(GL_BACK);
 
 
@@ -173,6 +205,15 @@ edaf80::Assignment3::run()
 		if (inputHandler.GetKeycodeState(GLFW_KEY_4) & JUST_PRESSED) {
 			circle_ring.set_program(&texcoord_shader, set_uniforms);
 		}
+		if (inputHandler.GetKeycodeState(GLFW_KEY_5) & JUST_PRESSED) {
+			circle_ring.set_program(&phong_shader, phong_set_uniforms);
+		}
+		if (inputHandler.GetKeycodeState(GLFW_KEY_6) & JUST_PRESSED) {
+			circle_ring.set_program(&cube_shader, set_uniforms);
+		}
+		if (inputHandler.GetKeycodeState(GLFW_KEY_7) & JUST_PRESSED) {
+			circle_ring.set_program(&bump_shader, phong_set_uniforms);
+		}
 		if (inputHandler.GetKeycodeState(GLFW_KEY_Z) & JUST_PRESSED) {
 			polygon_mode = get_next_mode(polygon_mode);
 		}
@@ -188,6 +229,7 @@ edaf80::Assignment3::run()
 			show_logs = !show_logs;
 		if (inputHandler.GetKeycodeState(GLFW_KEY_F2) & JUST_RELEASED)
 			show_gui = !show_gui;
+
 		switch (polygon_mode) {
 			case polygon_mode_t::fill:
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -209,7 +251,7 @@ edaf80::Assignment3::run()
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		circle_ring.render(mCamera.GetWorldToClipMatrix(), circle_ring.get_transform());
 
 		bool opened = ImGui::Begin("Scene Control", &opened, ImVec2(300, 100), -1.0f, 0);
 		if (opened) {
